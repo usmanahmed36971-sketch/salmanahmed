@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Electric Bike Simulator & Telemetry Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --panel-bg: rgba(18, 26, 43, 0.85);
+            --border-color: rgba(0, 240, 255, 0.2);
+            --primary: #00f0ff;
+            --secondary: #ff0055;
+            --accent: #ffe600;
+            --text-main: #f0f6fc;
+            --text-muted: #8b949e;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            padding: 10px;
+        }
+
+        #app-container {
+            width: 100%;
+            max-width: 1100px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            height: 380px;
+            background: #050811;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(0, 240, 255, 0.05);
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+        }
+
+        .card {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .card-header {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .value-display {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--primary);
+            letter-spacing: -0.5px;
+        }
+
+        .unit {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 400;
+            margin-left: 4px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, var(--primary), #00aaff);
+            transition: width 0.2s ease, background 0.3s ease;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .mode-selector {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .btn:hover {
+            background: rgba(0, 240, 255, 0.15);
+            border-color: var(--primary);
+        }
+
+        .btn.active {
+            background: var(--primary);
+            color: #000;
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+        }
+
+        .action-btns {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .btn-danger {
+            background: rgba(255, 0, 85, 0.15);
+            border-color: var(--secondary);
+            color: var(--secondary);
+        }
+
+        .btn-danger:hover, .btn-danger:active {
+            background: var(--secondary);
+            color: #fff;
+            box-shadow: 0 0 15px rgba(255, 0, 85, 0.4);
+        }
+
+        .btn-success {
+            background: rgba(0, 255, 136, 0.15);
+            border-color: #00ff88;
+            color: #00ff88;
+        }
+
+        .btn-success:hover, .btn-success:active {
+            background: #00ff88;
+            color: #000;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .badge.warning {
+            background: rgba(255, 230, 0, 0.2);
+            color: var(--accent);
+        }
+
+        .badge.danger {
+            background: rgba(255, 0, 85, 0.2);
+            color: var(--secondary);
+        }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <div class="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div class="dashboard">
+        <div class="card">
+            <div class="card-header">
+                <span>Speed</span>
+                <span class="badge" id="units-toggle" style="cursor: pointer;">MPH / KMH</span>
+            </div>
+            <div>
+                <span class="value-display" id="speed-val">0.0</span>
+                <span class="unit" id="unit-label">km/h</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="speed-bar" style="width: 0%;"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span>Battery Level</span>
+                <span id="regen-badge" class="badge warning" style="display: none;">REGEN</span>
+            </div>
+            <div>
+                <span class="value-display" id="battery-val">100</span>
+                <span class="unit">%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="battery-bar" style="width: 100%;"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span>Motor Power</span>
+                <span class="unit" id="motor-temp">35°C</span>
+            </div>
+            <div>
+                <span class="value-display" id="power-val">0</span>
+                <span class="unit">W</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="power-bar" style="width: 0%; background: var(--accent);"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span>Terrain Slope</span>
+                <span class="unit" id="slope-deg">0°</span>
+            </div>
+            <div>
+                <span class="value-display" id="slope-val">0</span>
+                <span class="unit">%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="slope-bar" style="width: 50%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="card">
+            <div class="card-header">Assist Mode</div>
+            <div class="mode-selector">
+                <div class="btn active" onclick="setMode(0)">OFF</div>
+                <div class="btn" onclick="setMode(1)">ECO</div>
+                <div class="btn" onclick="setMode(2)">TOUR</div>
+                <div class="btn" onclick="setMode(3)">TURBO</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Actions</div>
+            <div class="action-btns">
+                <button class="btn btn-success" id="pedal-btn">PEDAL</button>
+                <button class="btn btn-success" id="throttle-btn">THROTTLE</button>
+                <button class="btn btn-danger" id="brake-btn">BRAKE</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // E-Bike Physics Parameters
+    const bike = {
+        x: 150,
+        y: 0,
+        speed: 0, // m/s
+        maxSpeed: 18, // ~65 km/h limit
+        mass: 100, // kg total (rider + bike)
+        battery: 100, // %
+        batteryCapacityWh: 750,
+        motorPower: 0, // W
+        maxPower: 750, // W limit for Turbo
+        temp: 35, // °C
+        cadence: 0, // RPM
+        assistMode: 0, // 0: Off, 1: Eco, 2: Tour, 3: Turbo
+        assistMultipliers: [0, 0.5, 1.2, 2.5]
+    };
+
+    // Terrain & Environment
+    let distance = 0;
+    let slope = 0; // Ratio (tan theta)
+    let isMetric = true;
+
+    // Control Inputs
+    const keys = { ArrowUp: false, ArrowDown: false, KeyW: false, KeyS: false, Space: false };
+    let isPedaling = false;
+    let isThrottling = false;
+    let isBraking = false;
+
+    // UI Elements
+    const elSpeedVal = document.getElementById('speed-val');
+    const elSpeedBar = document.getElementById('speed-bar');
+    const elUnitLabel = document.getElementById('unit-label');
+    const elBatteryVal = document.getElementById('battery-val');
+    const elBatteryBar = document.getElementById('battery-bar');
+    const elPowerVal = document.getElementById('power-val');
+    const elPowerBar = document.getElementById('power-bar');
+    const elMotorTemp = document.getElementById('motor-temp');
+    const elSlopeVal = document.getElementById('slope-val');
+    const elSlopeDeg = document.getElementById('slope-deg');
+    const elSlopeBar = document.getElementById('slope-bar');
+    const elRegen = document.getElementById('regen-badge');
+
+    // Button Binds
+    const pedalBtn = document.getElementById('pedal-btn');
+    const throttleBtn = document.getElementById('throttle-btn');
+    const brakeBtn = document.getElementById('brake-btn');
+
+    const bindTouch = (btn, stateSetter) => {
+        ['mousedown', 'touchstart'].forEach(e => btn.addEventListener(e, (evt) => { evt.preventDefault(); stateSetter(true); }));
+        ['mouseup', 'mouseleave', 'touchend'].forEach(e => btn.addEventListener(e, (evt) => { evt.preventDefault(); stateSetter(false); }));
+    };
+
+    bindTouch(pedalBtn, v => isPedaling = v);
+    bindTouch(throttleBtn, v => isThrottling = v);
+    bindTouch(brakeBtn, v => isBraking = v);
+
+    document.getElementById('units-toggle').addEventListener('click', () => {
+        isMetric = !isMetric;
+        elUnitLabel.innerText = isMetric ? 'km/h' : 'mph';
+    });
+
+    window.addEventListener('keydown', e => {
+        if (e.code === 'ArrowUp' || e.code === 'KeyW') isThrottling = true;
+        if (e.code === 'Space') isPedaling = true;
+        if (e.code === 'ArrowDown' || e.code === 'KeyS') isBraking = true;
+    });
+
+    window.addEventListener('keyup', e => {
+        if (e.code === 'ArrowUp' || e.code === 'KeyW') isThrottling = false;
+        if (e.code === 'Space') isPedaling = false;
+        if (e.code === 'ArrowDown' || e.code === 'KeyS') isBraking = false;
+    });
+
+    function setMode(mode) {
+        bike.assistMode = mode;
+        const btns = document.querySelectorAll('.mode-selector .btn');
+        btns.forEach((b, i) => {
+            if (i === mode) b.classList.add('active');
+            else b.classList.remove('active');
+        });
+    }
+
+    // Height function for terrain generation
+    function getTerrainHeight(x) {
+        return Math.sin(x * 0.002) * 40 + Math.sin(x * 0.005) * 20;
+    }
+
+    function getTerrainSlope(x) {
+        const dx = 1;
+        return (getTerrainHeight(x + dx) - getTerrainHeight(x - dx)) / (2 * dx);
+    }
+
+    let lastTime = performance.now();
+
+    function update() {
+        const now = performance.now();
+        const dt = Math.min((now - lastTime) / 1000, 0.1); // seconds
+        lastTime = now;
+
+        // Calculate slope based on current distance
+        slope = getTerrainSlope(distance);
+
+        // Forces
+        const g = 9.81;
+        const cdA = 0.35; // Aerodynamic drag coefficient * frontal area
+        const rho = 1.225; // Air density
+        const crr = 0.005; // Rolling resistance coefficient
+
+        const fGravity = bike.mass * g * slope;
+        const fRoll = bike.mass * g * crr;
+        const fDrag = 0.5 * rho * cdA * Math.pow(bike.speed, 2);
+
+        // Human Power
+        let humanPower = 0;
+        if (isPedaling) {
+            humanPower = 150; // W average effort
+            bike.cadence = Math.min(90, bike.speed * 4.5 * 60 / (2 * Math.PI * 0.34));
+        } else {
+            bike.cadence = Math.max(0, bike.cadence - 100 * dt);
+        }
+
+        // Motor Power
+        let targetMotorPower = 0;
+        if (bike.battery > 0) {
+            if (isThrottling) {
+                targetMotorPower = bike.maxPower;
+            } else if (isPedaling && bike.assistMode > 0) {
+                targetMotorPower = Math.min(bike.maxPower, humanPower * bike.assistMultipliers[bike.assistMode]);
+            }
+        }
+
+        // Smooth motor response
+        bike.motorPower += (targetMotorPower - bike.motorPower) * 5 * dt;
+
+        // Drive Force
+        const totalPower = humanPower + bike.motorPower;
+        let fDrive = bike.speed > 0.5 ? totalPower / bike.speed : totalPower / 0.5;
+
+        // Torque limit simulation
+        fDrive = Math.min(fDrive, 600); // 600N max tractive force
+
+        // Braking Force & Regen
+        let fBrake = 0;
+        let isRegenActive = false;
+
+        if (isBraking) {
+            fBrake = 500; // Strong disc braking
+            if (bike.speed > 1 && bike.battery < 100) {
+                isRegenActive = true;
+                const regenPower = 200; // W regenerated
+                bike.battery = Math.min(100, bike.battery + (regenPower / (bike.batteryCapacityWh * 3600)) * 100 * dt);
+            }
+        }
+
+        // Net Force calculation
+        const fNet = fDrive - fGravity - fRoll - fDrag - fBrake;
+
+        // Acceleration
+        const accel = fNet / bike.mass;
+        bike.speed = Math.max(0, bike.speed + accel * dt);
+
+        // Update Distance
+        distance += bike.speed * dt * 20; // Scaled for visual movement
+
+        // Drain Battery
+        if (bike.motorPower > 0) {
+            const energyUsedWh = (bike.motorPower * (dt / 3600));
+            bike.battery = Math.max(0, bike.battery - (energyUsedWh / bike.batteryCapacityWh) * 100);
+        }
+
+        // Motor Temperature Simulation
+        const heatGen = (bike.motorPower / bike.maxPower) * 0.15;
+        const cooling = (bike.temp - 25) * 0.02 * (1 + bike.speed * 0.1);
+        bike.temp = Math.max(25, bike.temp + (heatGen - cooling) * dt);
+
+        // Update Telemetry UI
+        const speedKmh = bike.speed * 3.6;
+        const displaySpeed = isMetric ? speedKmh : speedKmh * 0.621371;
+
+        elSpeedVal.innerText = displaySpeed.toFixed(1);
+        elSpeedBar.style.width = `${Math.min(100, (speedKmh / 60) * 100)}%`;
+
+        elBatteryVal.innerText = bike.battery.toFixed(1);
+        elBatteryBar.style.width = `${bike.battery}%`;
+        if (bike.battery < 20) elBatteryBar.style.background = 'var(--secondary)';
+        else elBatteryBar.style.background = 'linear-gradient(90deg, var(--primary), #00aaff)';
+
+        elPowerVal.innerText = Math.round(bike.motorPower);
+        elPowerBar.style.width = `${(bike.motorPower / bike.maxPower) * 100}%`;
+
+        elMotorTemp.innerText = `${Math.round(bike.temp)}°C`;
+        if (bike.temp > 70) elMotorTemp.style.color = 'var(--secondary)';
+        else elMotorTemp.style.color = 'var(--text-muted)';
+
+        const slopePct = (slope * 100).toFixed(1);
+        const slopeAngle = (Math.atan(slope) * (180 / Math.PI)).toFixed(1);
+        elSlopeVal.innerText = slopePct > 0 ? `+${slopePct}` : slopePct;
+        elSlopeDeg.innerText = `${slopeAngle}°`;
+        elSlopeBar.style.width = `${Math.min(100, Math.max(0, (parseFloat(slopePct) + 20) / 40 * 100))}%`;
+
+        elRegen.style.display = isRegenActive ? 'inline-block' : 'none';
+
+        draw();
+        requestAnimationFrame(update);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const centerY = canvas.height * 0.65;
+
+        // Draw Sky Background
+        const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        skyGradient.addColorStop(0, '#050811');
+        skyGradient.addColorStop(1, '#101728');
+        ctx.fillStyle = skyGradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw Terrain Path
+        ctx.beginPath();
+        ctx.moveTo(0, canvas.height);
+
+        for (let x = 0; x <= canvas.width; x += 10) {
+            const worldX = distance + (x - bike.x);
+            const y = centerY + getTerrainHeight(worldX);
+            ctx.lineTo(x, y);
+        }
+
+        ctx.lineTo(canvas.width, canvas.height);
+        ctx.fillStyle = '#162238';
+        ctx.fill();
+
+        ctx.strokeStyle = '#00f0ff';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Calculate Bike Angle & Position on Surface
+        const currentY = centerY + getTerrainHeight(distance);
+        const nextY = centerY + getTerrainHeight(distance + 5);
+        const bikeAngle = Math.atan2(nextY - currentY, 5);
+
+        // Render E-Bike Model
+        ctx.save();
+        ctx.translate(bike.x, currentY);
+        ctx.rotate(bikeAngle);
+
+        const wheelRadius = 22;
+        const frameLength = 65;
+
+        // Wheels Rotation Offset based on Distance
+        const wheelAngle = (distance / wheelRadius) % (Math.PI * 2);
+
+        // Draw Wheels
+        drawWheel(-frameLength / 2, -wheelRadius, wheelRadius, wheelAngle);
+        drawWheel(frameLength / 2, -wheelRadius, wheelRadius, wheelAngle);
+
+        // Bike Frame Coordinates
+        const rearHub = { x: -frameLength / 2, y: -wheelRadius };
+        const frontHub = { x: frameLength / 2, y: -wheelRadius };
+        const bbPoint = { x: -5, y: -wheelRadius }; // Bottom Bracket
+        const seatPoint = { x: -18, y: -wheelRadius - 35 };
+        const headPoint = { x: 20, y: -wheelRadius - 40 };
+
+        // Frame Tubes
+        ctx.strokeStyle = '#f0f6fc';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        ctx.beginPath();
+        // Main triangle
+        ctx.moveTo(rearHub.x, rearHub.y);
+        ctx.lineTo(bbPoint.x, bbPoint.y);
+        ctx.lineTo(seatPoint.x, seatPoint.y);
+        ctx.lineTo(rearHub.x, rearHub.y);
+
+        ctx.moveTo(bbPoint.x, bbPoint.y);
+        ctx.lineTo(headPoint.x, headPoint.y);
+        ctx.lineTo(seatPoint.x, seatPoint.y);
+
+        // Front fork & handlebars
+        ctx.moveTo(headPoint.x, headPoint.y);
+        ctx.lineTo(frontHub.x, frontHub.y);
+        ctx.moveTo(headPoint.x, headPoint.y);
+        ctx.lineTo(headPoint.x + 3, headPoint.y - 8);
+        ctx.lineTo(headPoint.x - 5, headPoint.y - 12);
+
+        // Seat post & Saddle
+        ctx.moveTo(seatPoint.x, seatPoint.y);
+        ctx.lineTo(seatPoint.x - 2, seatPoint.y - 8);
+        ctx.lineTo(seatPoint.x - 12, seatPoint.y - 10);
+        ctx.stroke();
+
+        // Battery Pack (Integrated Down Tube)
+        ctx.strokeStyle = '#00f0ff';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(bbPoint.x + 6, bbPoint.y - 4);
+        ctx.lineTo(headPoint.x - 6, headPoint.y + 8);
+        ctx.stroke();
+
+        // Motor Hub (Mid Drive)
+        ctx.fillStyle = '#ff0055';
+        ctx.beginPath();
+        ctx.arc(bbPoint.x, bbPoint.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Headlight Beam
+        ctx.save();
+        ctx.translate(headPoint.x, headPoint.y - 5);
+        const lightGradient = ctx.createRadialGradient(0, 0, 5, 120, 0, 80);
+        lightGradient.addColorStop(0, 'rgba(0, 240, 255, 0.4)');
+        lightGradient.addColorStop(1, 'rgba(0, 240, 255, 0)');
+        ctx.fillStyle = lightGradient;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, 150, -Math.PI / 12, Math.PI / 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // Animated Rider Silhouette
+        drawRider(bbPoint, seatPoint, headPoint, bike.cadence);
+
+        ctx.restore();
+    }
+
+    function drawWheel(x, y, radius, angle) {
+        ctx.save();
+        ctx.translate(x, y);
+
+        // Tire
+        ctx.strokeStyle = '#30363d';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Rim
+        ctx.strokeStyle = '#8b949e';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius - 2, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Spokes
+        ctx.rotate(angle);
+        ctx.strokeStyle = 'rgba(240, 246, 252, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i < 8; i++) {
+            ctx.moveTo(0, 0);
+            ctx.lineTo(Math.cos(i * Math.PI / 4) * radius, Math.sin(i * Math.PI / 4) * radius);
+        }
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    function drawRider(bb, seat, head, cadence) {
+        const rad = (performance.now() * 0.001 * cadence * 2 * Math.PI / 60);
+        const pedalR = 6;
+
+        // Pedal position
+        const pedalX = bb.x + Math.cos(rad) * pedalR;
+        const pedalY = bb.y + Math.sin(rad) * pedalR;
+
+        // Rider Hip, Knee, Foot positions
+        const hipX = seat.x - 2;
+        const hipY = seat.y - 12;
+
+        // Inverse Kinematics for Legs
+        const thigh = 24;
+        const shin = 24;
+        const dx = pedalX - hipX;
+        const dy = pedalY - hipY;
+        const d = Math.min(thigh + shin - 1, Math.sqrt(dx * dx + dy * dy));
+        const angle = Math.atan2(dy, dx);
+        const cosKnee = (thigh * thigh + shin * shin - d * d) / (2 * thigh * shin);
+        const kneeAngle = Math.acos(Math.max(-1, Math.min(1, cosKnee)));
+
+        const kneeX = hipX + Math.cos(angle - kneeAngle / 2) * thigh;
+        const kneeY = hipY + Math.sin(angle - kneeAngle / 2) * thigh;
+
+        // Body Draw
+        ctx.strokeStyle = '#f0f6fc';
+        ctx.lineWidth = 3.5;
+
+        // Legs
+        ctx.beginPath();
+        ctx.moveTo(hipX, hipY);
+        ctx.lineTo(kneeX, kneeY);
+        ctx.lineTo(pedalX, pedalY);
+        ctx.stroke();
+
+        // Torso & Head
+        const shoulderX = hipX + 15;
+        const shoulderY = hipY - 25;
+        const headX = shoulderX + 5;
+        const headY = shoulderY - 12;
+
+        ctx.beginPath();
+        ctx.moveTo(hipX, hipY);
+        ctx.lineTo(shoulderX, shoulderY);
+        // Arms to handlebar
+        ctx.lineTo(head.x - 5, head.y - 12);
+        ctx.stroke();
+
+        // Head/Helmet
+        ctx.fillStyle = '#00f0ff';
+        ctx.beginPath();
+        ctx.arc(headX, headY, 7, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Start Simulation Loop
+    update();
+</script>
+</body>
+</html>
